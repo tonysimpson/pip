@@ -15,12 +15,12 @@ from pip.util import (splitext, rmtree, format_size, display_path,
                       create_download_cache_folder, cache_download)
 from pip.vcs import vcs
 from pip.log import logger
-
+from pip.sftp import sftp_download_package
 
 __all__ = ['xmlrpclib_transport', 'get_file_content', 'urlopen',
            'is_url', 'url_to_path', 'path_to_url', 'path_to_url2',
            'geturl', 'is_archive_file', 'unpack_vcs_link',
-           'unpack_file_url', 'is_vcs_url', 'is_file_url', 'unpack_http_url']
+           'unpack_file_url', 'is_vcs_url', 'is_file_url', 'unpack_http_url', 'is_sftp_url', 'unpack_sftp_url']
 
 
 xmlrpclib_transport = xmlrpclib.Transport()
@@ -321,6 +321,8 @@ def is_vcs_url(link):
 def is_file_url(link):
     return link.url.lower().startswith('file:')
 
+def is_sftp_url(link):
+    return link.url.lower().startswith('sftp://')
 
 def _check_hash(download_hash, link):
     if download_hash.digest_size != hashlib.new(link.hash_name).digest_size:
@@ -485,6 +487,12 @@ def unpack_http_url(link, location, download_cache, download_dir=None):
         os.unlink(temp_location)
     os.rmdir(temp_dir)
 
+def unpack_sftp_url(link, location, ssh_keys=None):
+    temp_dir = tempfile.mkdtemp('-unpack', 'pip-')
+    temp_location = sftp_download_package(link.url, temp_dir, ssh_keys)
+    content_type = mimetypes.guess_type('file://'+os.path.abspath(temp_location))
+    unpack_file(temp_location, location, content_type, link)
+    rmtree(temp_dir)
 
 def _get_response_from_url(target_url, link):
     try:

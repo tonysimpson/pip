@@ -28,7 +28,8 @@ from pip.locations import build_prefix
 from pip.download import (get_file_content, is_url, url_to_path,
                           path_to_url, is_archive_file,
                           unpack_vcs_link, is_vcs_url, is_file_url,
-                          unpack_file_url, unpack_http_url)
+                          unpack_file_url, unpack_http_url,
+                          unpack_sftp_url, is_sftp_url)
 
 
 PIP_DELETE_MARKER_FILENAME = 'pip-delete-this-directory.txt'
@@ -803,11 +804,12 @@ class RequirementSet(object):
 
     def __init__(self, build_dir, src_dir, download_dir, download_cache=None,
                  upgrade=False, ignore_installed=False, as_egg=False,
-                 ignore_dependencies=False, force_reinstall=False, use_user_site=False):
+                 ignore_dependencies=False, force_reinstall=False, use_user_site=False, ssh_keys=None):
         self.build_dir = build_dir
         self.src_dir = src_dir
         self.download_dir = download_dir
         self.download_cache = download_cache
+        self.ssh_keys = ssh_keys
         self.upgrade = upgrade
         self.ignore_installed = ignore_installed
         self.force_reinstall = force_reinstall
@@ -1137,6 +1139,8 @@ class RequirementSet(object):
         # a local file:// index could have links with hashes
         elif not link.hash and is_file_url(link):
             return unpack_file_url(link, loc)
+        elif is_sftp_url(link):
+            return unpack_sftp_url(link, loc, self.ssh_keys)
         else:
             if self.download_cache:
                 self.download_cache = os.path.expanduser(self.download_cache)

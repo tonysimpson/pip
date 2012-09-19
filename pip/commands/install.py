@@ -66,6 +66,12 @@ class InstallCommand(Command):
             default=False,
             help='Ignore package index (only looking at --find-links URLs instead)')
         self.parser.add_option(
+           '--ssh-key',
+           dest='ssh_keys',
+           action='append',
+           default=[],
+           help='Filename of ssh private key to try with sftp')
+        self.parser.add_option(
             '-M', '--use-mirrors',
             dest='use_mirrors',
             action='store_true',
@@ -181,7 +187,8 @@ class InstallCommand(Command):
         return PackageFinder(find_links=options.find_links,
                              index_urls=index_urls,
                              use_mirrors=options.use_mirrors,
-                             mirrors=options.mirrors)
+                             mirrors=options.mirrors,
+                             ssh_keys=options.ssh_keys)
 
     def run(self, options, args):
         if options.download_dir:
@@ -219,7 +226,8 @@ class InstallCommand(Command):
             ignore_installed=options.ignore_installed,
             ignore_dependencies=options.ignore_dependencies,
             force_reinstall=options.force_reinstall,
-            use_user_site=options.use_user_site)
+            use_user_site=options.use_user_site,
+            ssh_keys=options.ssh_keys)
         for name in args:
             requirement_set.add_requirement(
                 InstallRequirement.from_line(name, None))

@@ -2,6 +2,7 @@
 
 import sys
 import os
+import os.path
 import re
 import gzip
 import mimetypes
@@ -25,6 +26,7 @@ from pip.backwardcompat import (WindowsError, BytesIO,
                                 product, url2pathname)
 from pip.backwardcompat import Empty as QueueEmpty
 from pip.download import urlopen, path_to_url2, url_to_path, geturl, Urllib2HeadRequest
+from pip.sftp import sftp_find_package
 
 __all__ = ['PackageFinder']
 
@@ -40,9 +42,11 @@ class PackageFinder(object):
     """
 
     def __init__(self, find_links, index_urls,
-            use_mirrors=False, mirrors=None, main_mirror_url=None):
+            use_mirrors=False, mirrors=None, main_mirror_url=None, ssh_keys=None):
         self.find_links = find_links
-        self.index_urls = index_urls
+        self.index_urls = [i for i in list(index_urls) if not i.startswith('sftp://')]
+        self.sftp_index_urls = [i for i in list(index_urls) if i.startswith('sftp://')]
+        self.ssh_keys = ssh_keys
         self.dependency_links = []
         self.cache = PageCache()
         # These are boring links that have already been logged somehow:
@@ -155,13 +159,17 @@ class PackageFinder(object):
                 page_versions.extend(self._package_versions(page.links, req.name.lower()))
             finally:
                 logger.indent -= 2
+        #MARK: sftp        
+        sftp_versions = []
+        for sftp_url in self.sftp_index_urls:
+            sftp_versions.extend(self._package_versions((Link(url) for url in sftp_find_package(sftp_url, starts_with=req.name.lower(), ssh_keys=self.ssh_keys)), req.name.lower()))
         dependency_versions = list(self._package_versions(
             [Link(url) for url in self.dependency_links], req.name.lower()))
         if dependency_versions:
             logger.info('dependency_links found: %s' % ', '.join([link.url for parsed, link, version in dependency_versions]))
         file_versions = list(self._package_versions(
                 [Link(url) for url in file_locations], req.name.lower()))
-        if not found_versions and not page_versions and not dependency_versions and not file_versions:
+        if not found_versions and not page_versions and not dependency_versions and not file_versions and not sftp_versions:
             logger.fatal('Could not find any downloads that satisfy the requirement %s' % req)
             raise DistributionNotFound('No distributions at all found for %s' % req)
         if req.satisfied_by is not None:
@@ -170,7 +178,7 @@ class PackageFinder(object):
             file_versions.sort(reverse=True)
             logger.info('Local files found: %s' % ', '.join([url_to_path(link.url) for parsed, link, version in file_versions]))
             found_versions = file_versions + found_versions
-        all_versions = found_versions + page_versions + dependency_versions
+        all_versions = sftp_versions + found_versions + page_versions + dependency_versions
         applicable_versions = []
         for (parsed_version, link, version) in all_versions:
             if version not in req.req:
